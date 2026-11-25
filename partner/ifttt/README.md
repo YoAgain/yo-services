@@ -17,7 +17,7 @@ Anna                    IFTTT                     Yo
  │   "Continue"           │                        │
  ├───────────────────────►│  return_url?code=777   │
  │                        │  777, for a secret     │
- │                        ├───────────────────────►│  api.justyo.app/services/ifttt/token
+ │                        ├───────────────────────►│  api.justyo.app/ifttt/token
  │                        │◄───────────────────────┤  Anna's secret, for good
 ```
 
@@ -32,7 +32,7 @@ From now on the server has one row for Anna:
 It rains, and Anna's Applet says "Yo me".
 
 ```text
-IFTTT ──► api.justyo.app/services/ifttt/v1/actions/yo_me      with Anna's secret (in)
+IFTTT ──► api.justyo.app/ifttt/v1/actions/yo_me      with Anna's secret (in)
           server      whose secret is it? Anna's
           ifttt.py    [{"send": "yo"}, {"reply": …}]
 Anna  ◄── Yo from IFTTT
@@ -47,7 +47,7 @@ Anna  ──► Yo to IFTTT
           server      keeps it for 7 days
           ifttt.py    [{"call": "https://realtime.ifttt.com/v1/notifications", …}]
 IFTTT ◄── there is something new for Anna (out)
-IFTTT ──► api.justyo.app/services/ifttt/v1/triggers/you_yo_ifttt      with Anna's secret (in)
+IFTTT ──► api.justyo.app/ifttt/v1/triggers/you_yo_ifttt      with Anna's secret (in)
           server      whose secret is it? Anna's: her last Yos
           ifttt.py    [{"reply": …}]
 IFTTT ◄── one Yo, 18:00

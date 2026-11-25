@@ -51,7 +51,7 @@ Only of a service that users connect with another one (planned), as `[bridge]`, 
 | `call_urls` | Web addresses it may call for a connected user |
 | `key_header` | The header with the other side's key; the key itself is the server's |
 
-The other side calls `api.justyo.app/services/NAME/…`: `event["trigger"]` is `"webhook"`. The server keeps two values per
+The other side calls `api.justyo.app/NAME/…`: `event["trigger"]` is `"webhook"`. The server keeps two values per
 user: the secret such a call carries, which the script never sees, and `event["out"]`, what the other side knows them by.
 
 License and everything else: [Yo](https://github.com/YoAgain/yo#readme).
