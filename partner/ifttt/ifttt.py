@@ -30,7 +30,7 @@ def called(event):
     if call == "GET status":
         return [{"reply": {}}]
     if call == "POST test/setup" and event["test"]:
-        samples = {"triggers": {TRIGGER: {}}, "actions": {ACTION: {}}}
+        samples = {"triggers": {TRIGGER: {}}, "actions": {ACTION: {"photo_url": ""}}}
         return [{"reply": {"data": {"accessToken": event["test"], "samples": samples}}}]
     if call.startswith(f"DELETE triggers/{TRIGGER}/trigger_identity/"):
         return [{"reply": {}}]
@@ -39,7 +39,10 @@ def called(event):
     if event["out"] and call == f"POST triggers/{TRIGGER}":
         return [{"reply": {"data": yos(event)}}]
     if event["out"] and call == f"POST actions/{ACTION}":
-        return [{"send": "yo"}, {"reply": {"data": [{"id": event["id"]}]}}]
+        fields = event["body"].get("actionFields")
+        url = fields.get("photo_url") if isinstance(fields, dict) else None
+        send = {"send": "picture", "url": url} if isinstance(url, str) and url else {"send": "yo"}
+        return [send, {"reply": {"data": [{"id": event["id"]}]}}]
     return [{"reply": {"errors": [{"message": "Not found"}]}, "status": 404}]
 
 

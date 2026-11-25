@@ -168,6 +168,9 @@ def check(action, event, toml, folder):
         picture = folder / action["file"]
         need(picture.is_file() and not picture.is_symlink() and picture.stat().st_size <= MAX_PICTURE, "file")
         need(picture.read_bytes().startswith(JPEG), "file")
+    elif keys == {"send", "url"}:
+        need(sends == "picture" and event["trigger"] == "webhook" and event["out"], "url")
+        need(isinstance(action["url"], str) and len(action["url"]) <= 2048, "url")
     elif keys == {"wait_ms"}:
         need(type(action["wait_ms"]) is int and 0 <= action["wait_ms"] <= 5000, "wait_ms")
     elif keys == {"remind"}:
@@ -262,6 +265,8 @@ class Services(unittest.TestCase):
         self.assertEqual(ids(limit=1), ["2"])
         self.assertEqual(ids(limit=0), [])
         self.assertEqual(ask("POST actions/yo_me"), [{"send": "yo"}, {"reply": {"data": [{"id": "CALL"}]}}])
+        photo = ask("POST actions/yo_me", body={"actionFields": {"photo_url": "https://example.com/a.jpg"}})[0]
+        self.assertEqual(photo, {"send": "picture", "url": "https://example.com/a.jpg"})
         self.assertEqual(ask("GET user/info")[0]["reply"]["data"], {"id": "OUT", "name": "Yo"})
         self.assertEqual(ask("POST test/setup", out=None, test="T")[0]["reply"]["data"]["accessToken"], "T")
         self.assertEqual(ask("DELETE triggers/you_yo_ifttt/trigger_identity/x", out=None), [{"reply": {}}])

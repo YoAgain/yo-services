@@ -34,7 +34,7 @@ It rains, and Anna's Applet says "Yo me".
 ```text
 IFTTT ──► api.justyo.app/ifttt/v1/actions/yo_me      with Anna's secret (in)
           server      whose secret is it? Anna's
-          ifttt.py    [{"send": "yo"}, {"reply": …}]
+          ifttt.py    [{"send": "yo"}, {"reply": …}]      or with photo_url: a picture
 Anna  ◄── Yo from IFTTT
 ```
 
