@@ -1,0 +1,4 @@
+names        = ["PING", "PINGTEST"]
+about        = "Sends back what you send."
+triggers     = ["yo"]
+allowed_urls = []

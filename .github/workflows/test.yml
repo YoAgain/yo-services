@@ -1,0 +1,10 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m venv /tmp/py && /tmp/py/bin/pip install pillow && /tmp/py/bin/python -B test.py

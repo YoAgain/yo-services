@@ -1,0 +1,4 @@
+names        = ["TEMPLATE"]      # its Yo names: one or more, each an account of its own; event["name"] says which
+about        = "A Yo gets the time, and one Yo ten minutes later."    # what it does
+triggers     = ["yo", "cron"]    # "yo": someone Yos it; "cron": a reminder is due, so it may remember who Yoed
+allowed_urls = []                # web addresses it may call; not built yet
