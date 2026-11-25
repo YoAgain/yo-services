@@ -238,7 +238,7 @@ class Services(unittest.TestCase):
         for folder in [HERE / "template", *(f for f in HERE.glob("*/*") if f.is_dir() and not f.parts[-2].startswith("."))]:
             with self.subTest(folder.name):
                 self.assertIn(folder, folders)
-                names = {f.name for f in folder.iterdir()} - {"assets", "README.md", "logo.png"}
+                names = {f.name for f in folder.iterdir()} - {"assets", "README.md", "logo.png", "flow.png"}
                 self.assertEqual(names, {f"{folder.name}.toml", f"{folder.name}.py"})
 
     def test_ping_sends_back_what_came(self):
