@@ -43,11 +43,12 @@ Copy [template](template): `template.toml` says what it may do, `template.py` do
 | `triggers` | `"yo"`: answers a Yo, remembers nobody |
 | | `"cron"`: one reminder per Yo, remembers who until then |
 
-Only of a service that users connect with another one (planned), as `[bridge]`, all three:
+Only of a service that users connect with another one (planned), as `[bridge]`, all four:
 
 | | |
 |---|---|
-| `return_url` | Where `justyo.co/services/NAME/connect` goes back to once the app allowed it |
+| `return_url` | Where `justyo.co/services/NAME` goes back to once the app allowed it |
+| `help_url` | Shown to a user who Yos it and is not connected: a picture with its QR code goes back, the script is not asked |
 | `call_urls` | Web addresses it may call for a connected user |
 | `key_header` | The header with the other side's key; the key itself is the server's |
 

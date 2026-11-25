@@ -9,7 +9,7 @@ Anna                    IFTTT                     Yo
  │   "Connect Yo"         │                        │
  ├───────────────────────►│                        │
  │                        │  opens                 │
- │                        ├───────────────────────►│  justyo.co/services/ifttt/connect?state=777
+ │                        ├───────────────────────►│  justyo.co/services/ifttt?state=777
  │                                                 │  shows a QR code, or "Open in Yo"
  │   opens the app: "Connect IFTTT?" Allow         │
  ├────────────────────────────────────────────────►│  encrypted, to the account IFTTT

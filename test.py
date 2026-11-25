@@ -18,7 +18,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SERVICES = [HERE / "template/template.py", *sorted(p.with_suffix(".py") for p in HERE.glob("*/*/*.toml"))]
 FIELDS = {"names": list, "about": str, "triggers": list}
-BRIDGE = {"return_url": str, "call_urls": list, "key_header": str}
+BRIDGE = {"return_url": str, "help_url": str, "call_urls": list, "key_header": str}
 NOW = 1_800_000_000
 JPEG, MAX_PICTURE, MAX_ANSWER = b"\xff\xd8\xff", 512 * 1024, 1024 * 1024
 
@@ -56,6 +56,8 @@ def settings(path):
     if bridge is not None:
         need(isinstance(bridge, dict) and {k: type(v) for k, v in bridge.items()} == BRIDGE, "bridge: all of it, no more")
         need(re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+(/[A-Za-z0-9._-]+)+", bridge["return_url"]), "return_url")
+        need(re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+(/[A-Za-z0-9._-]+)+", bridge["help_url"])
+             and len(bridge["help_url"]) <= 128, "help_url")
         need(all(isinstance(url, str) and re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+/([A-Za-z0-9._-]+/)*", url)
                  for url in bridge["call_urls"]), "call_urls")
         need(re.fullmatch(r"[A-Za-z0-9-]{1,64}", bridge["key_header"]), "key_header")
@@ -234,7 +236,7 @@ class Services(unittest.TestCase):
         for folder in [HERE / "template", *(f for f in HERE.glob("*/*") if f.is_dir() and not f.parts[-2].startswith("."))]:
             with self.subTest(folder.name):
                 self.assertIn(folder, folders)
-                names = {f.name for f in folder.iterdir()} - {"assets", "README.md", "logo.png", "applet-logo.svg"}
+                names = {f.name for f in folder.iterdir()} - {"assets", "README.md", "logo.png"}
                 self.assertEqual(names, {f"{folder.name}.toml", f"{folder.name}.py"})
 
     def test_ping_sends_back_what_came(self):
@@ -331,7 +333,7 @@ TOMLS = {
     "missing": ("about", "abou"), "extra": ("about", "root = 1\nabout"), "no TOML": ("about", "print(1)\nabout"),
     "internet": ("triggers", 'allowed_urls = ["https://example.com/"]\ntriggers'), "trigger": ('"yo"', '"root"'),
     "webhook": ('"yo"', '"webhook"'), "half bridge": ("triggers", 'bridge = {return_url = "https://example.com/a"}\ntriggers'),
-    "bridge to http": ("triggers", 'bridge = {return_url = "http://example.com/a", call_urls = [], key_header = "A"}\ntriggers'),
+    "bridge to http": ("triggers", 'bridge = {return_url = "http://example.com/a", help_url = "https://example.com/h", call_urls = [], key_header = "A"}\ntriggers'),
     "name": ('"PING"', '"YOGPT"'), "no name": ('"PING", "PINGTEST"', ""), "twice": ('"PINGTEST"', '"ping"'),
     "one name": ('["PING", "PINGTEST"]', '"PING"'), "type": ('"a"', "1"),
 }

@@ -4,5 +4,6 @@ triggers = ["yo", "cron"]    # "yo": someone Yos it; "cron": a reminder is due, 
 
 [bridge]                     # only of a service that users connect with another one; left out, it has none of this
 return_url = "https://example.com/connected"    # where the user goes back to, once the app allowed it
+help_url   = "https://example.com/yo"           # where a user who is not connected reads how to
 call_urls  = ["https://example.com/"]           # what it may call for a connected user, anything below
 key_header = "X-Example-Key"                    # the header with the other side's key, which the server has
