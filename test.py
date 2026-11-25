@@ -18,7 +18,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SERVICES = [HERE / "template/template.py", *sorted(p.with_suffix(".py") for p in HERE.glob("*/*/*.toml"))]
 FIELDS = {"names": list, "about": str, "triggers": list}
-BRIDGE = {"return_url": str, "help_url": str, "call_urls": list, "key_header": str}
+BRIDGE = {"client_id": str, "return_url": str, "help_url": str, "call_urls": list, "key_header": str}
 NOW = 1_800_000_000
 JPEG, MAX_PICTURE, MAX_ANSWER = b"\xff\xd8\xff", 512 * 1024, 1024 * 1024
 
@@ -55,6 +55,7 @@ def settings(path):
     toml["bridge"] = bridge
     if bridge is not None:
         need(isinstance(bridge, dict) and {k: type(v) for k, v in bridge.items()} == BRIDGE, "bridge: all of it, no more")
+        need(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", bridge["client_id"]), "client_id")
         need(re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+(/[A-Za-z0-9._-]+)+", bridge["return_url"]), "return_url")
         need(re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+(/[A-Za-z0-9._-]+)+", bridge["help_url"])
              and len(bridge["help_url"]) <= 128, "help_url")
@@ -199,7 +200,8 @@ def events(toml):
             for group in (False,) if trigger in ("cron", "webhook") else (False, True):
                 for remembered in (False, True) if "cron" in toml["triggers"] else (False,):
                     for out in (None, "OUT") if toml["bridge"] else (None,):
-                        call = {"id": "CALL", "method": "POST", "path": "a/b", "body": {}, "yos": [], "test": None}
+                        call = {"id": "CALL", "method": "POST", "path": "a/b", "body": {}, "yos": [], "test": None,
+                                "keyed": out is None}
                         yield {"name": name, "trigger": trigger, "kind": kind, "group": group, "remembered": remembered,
                                "media": "it" if kind in ("picture", "video") else None, "now": NOW, "out": out,
                                **{k: v if trigger == "webhook" else None for k, v in call.items()}}
@@ -249,7 +251,7 @@ class Services(unittest.TestCase):
         toml = settings(ifttt)
         yos = [{"id": "2", "kind": "picture", "at": NOW}, {"id": "1", "kind": "yo", "at": NOW - 60}]
         base = {"name": "IFTTT", "trigger": "webhook", "kind": "webhook", "media": None, "group": False, "remembered": False,
-                "now": NOW, "id": "CALL", "body": {}, "out": "OUT", "yos": yos, "test": None}
+                "now": NOW, "id": "CALL", "body": {}, "out": "OUT", "yos": yos, "test": None, "keyed": False}
 
         def ask(call, **more):
             method, path = call.split(" ")
@@ -262,18 +264,27 @@ class Services(unittest.TestCase):
         def ids(**body):
             return [yo["meta"]["id"] for yo in ask("POST triggers/you_yo_ifttt", body=body)[0]["reply"]["data"]]
 
-        self.assertEqual(ask("GET status", out=None), [{"reply": {}}])
+        own = {"out": None, "keyed": True}
+        self.assertEqual(ask("GET status", **own), [{"reply": {}}])
+        for call in ("GET status", "POST test/setup"):
+            self.assertEqual(ask(call)[0]["status"], 401)
+        self.assertEqual(ask("POST test/setup", **own)[0]["status"], 503)
         self.assertEqual(ids(), ["2", "1"])
         self.assertEqual(ids(limit=1), ["2"])
         self.assertEqual(ids(limit=0), [])
-        self.assertEqual(ask("POST actions/yo_me"), [{"send": "yo"}, {"reply": {"data": [{"id": "CALL"}]}}])
+        self.assertEqual(ids(limit=-1), [])
+        self.assertEqual(ask("POST actions/yo_me", body={"actionFields": {}}), [{"send": "yo"}, {"reply": {"data": [{"id": "CALL"}]}}])
         photo = ask("POST actions/yo_me", body={"actionFields": {"photo_url": "https://example.com/a.jpg"}})[0]
         self.assertEqual(photo, {"send": "picture", "url": "https://example.com/a.jpg"})
         self.assertEqual(ask("GET user/info")[0]["reply"]["data"], {"id": "OUT", "name": "Yo"})
-        self.assertEqual(ask("POST test/setup", out=None, test="T")[0]["reply"]["data"]["accessToken"], "T")
+        self.assertEqual(ask("POST test/setup", **own, test="T")[0]["reply"]["data"]["accessToken"], "T")
         self.assertEqual(ask("DELETE triggers/you_yo_ifttt/trigger_identity/x", out=None), [{"reply": {}}])
-        for call in ("GET user/info", "POST triggers/you_yo_ifttt", "POST actions/yo_me", "POST test/setup"):
-            self.assertEqual(ask(call, out=None)[0]["status"], 404)
+        for call in ("GET user/info", "POST triggers/you_yo_ifttt", "POST actions/yo_me"):
+            answer = ask(call, **own)[0]
+            self.assertEqual((answer["status"], set(answer["reply"])), (401, {"errors"}))
+        self.assertEqual(ask("GET other")[0]["status"], 404)
+        for body in ({}, {"actionFields": None}, {"actionFields": []}, {"actionFields": {"photo_url": 1}}):
+            self.assertEqual([a.get("status") for a in ask("POST actions/yo_me", body=body)], [400])
         yo = {**base, "trigger": "yo", "kind": "yo"}
         self.assertEqual(run(ifttt, yo)[0]["body"], {"data": [{"user_id": "OUT"}]})
         self.assertEqual(run(ifttt, {**yo, "out": None}), [])
@@ -333,7 +344,7 @@ TOMLS = {
     "missing": ("about", "abou"), "extra": ("about", "root = 1\nabout"), "no TOML": ("about", "print(1)\nabout"),
     "internet": ("triggers", 'allowed_urls = ["https://example.com/"]\ntriggers'), "trigger": ('"yo"', '"root"'),
     "webhook": ('"yo"', '"webhook"'), "half bridge": ("triggers", 'bridge = {return_url = "https://example.com/a"}\ntriggers'),
-    "bridge to http": ("triggers", 'bridge = {return_url = "http://example.com/a", help_url = "https://example.com/h", call_urls = [], key_header = "A"}\ntriggers'),
+    "bridge to http": ("triggers", 'bridge = {client_id = "c", return_url = "http://example.com/a", help_url = "https://example.com/h", call_urls = [], key_header = "A"}\ntriggers'),
     "name": ('"PING"', '"YOGPT"'), "no name": ('"PING", "PINGTEST"', ""), "twice": ('"PINGTEST"', '"ping"'),
     "one name": ('["PING", "PINGTEST"]', '"PING"'), "type": ('"a"', "1"),
 }

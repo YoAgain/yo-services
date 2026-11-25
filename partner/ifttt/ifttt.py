@@ -15,35 +15,49 @@ def yos(event):
     if event["out"] == "test":                # IFTTT's own tests want three
         sent = [{"id": f"test{n}", "kind": "yo", "at": 1_700_000_000 + n} for n in (3, 2, 1)]
     limit = event["body"].get("limit")
-    if type(limit) is not int or limit < 0:
+    if type(limit) is not int:
         limit = 50
     return [{
         "received_at": datetime.fromtimestamp(yo["at"], timezone.utc).isoformat(),
         "kind": yo["kind"],
         "meta": {"id": yo["id"], "timestamp": yo["at"]},
-    } for yo in sent[:limit]]
+    } for yo in sent[:max(limit, 0)]]
+
+
+def refuse(code, why, **more):
+    return [{"reply": {"errors": [{"message": why, **more}]}, "status": code}]
 
 
 def called(event):
     """IFTTT calls us."""
     call = event["method"] + " " + event["path"].removeprefix("v1/")
-    if call == "GET status":
-        return [{"reply": {}}]
-    if call == "POST test/setup" and event["test"]:
+    if call in ("GET status", "POST test/setup"):               # with IFTTT's own key, not a user's
+        if not event["keyed"]:
+            return refuse(401, "No service key")
+        if call == "GET status":
+            return [{"reply": {}}]
+        if not event["test"]:
+            return refuse(503, "No test account")
         samples = {"triggers": {TRIGGER: {}}, "actions": {ACTION: {"photo_url": ""}}}
         return [{"reply": {"data": {"accessToken": event["test"], "samples": samples}}}]
     if call.startswith(f"DELETE triggers/{TRIGGER}/trigger_identity/"):
         return [{"reply": {}}]
-    if event["out"] and call == "GET user/info":
+    if call not in ("GET user/info", f"POST triggers/{TRIGGER}", f"POST actions/{ACTION}"):
+        return refuse(404, "Not found")
+    if not event["out"]:
+        return refuse(401, "Not connected")
+    if call == "GET user/info":
         return [{"reply": {"data": {"id": event["out"], "name": "Yo"}}}]
-    if event["out"] and call == f"POST triggers/{TRIGGER}":
+    if call == f"POST triggers/{TRIGGER}":
         return [{"reply": {"data": yos(event)}}]
-    if event["out"] and call == f"POST actions/{ACTION}":
-        fields = event["body"].get("actionFields")
-        url = fields.get("photo_url") if isinstance(fields, dict) else None
-        send = {"send": "picture", "url": url} if isinstance(url, str) and url else {"send": "yo"}
-        return [send, {"reply": {"data": [{"id": event["id"]}]}}]
-    return [{"reply": {"errors": [{"message": "Not found"}]}, "status": 404}]
+    fields = event["body"].get("actionFields")
+    if not isinstance(fields, dict):
+        return refuse(400, "No actionFields")
+    url = fields.get("photo_url")
+    if url is not None and not isinstance(url, str):
+        return refuse(400, "photo_url: text", status="SKIP")
+    send = {"send": "picture", "url": url} if url else {"send": "yo"}
+    return [send, {"reply": {"data": [{"id": event["id"]}]}}]
 
 
 event = json.load(sys.stdin)

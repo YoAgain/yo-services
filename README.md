@@ -43,16 +43,18 @@ Copy [template](template): `template.toml` says what it may do, `template.py` do
 | `triggers` | `"yo"`: answers a Yo, remembers nobody |
 | | `"cron"`: one reminder per Yo, remembers who until then |
 
-Only of a service that users connect with another one (planned), as `[bridge]`, all four:
+Only of a service that users connect with another one (planned), as `[bridge]`, all five:
 
 | | |
 |---|---|
+| `client_id` | Who the other side says it is (OAuth 2); its secret is the server's |
 | `return_url` | Where `justyo.co/services/NAME` goes back to once the app allowed it |
 | `help_url` | Shown to a user who Yos it and is not connected: a picture with its QR code goes back, the script is not asked |
 | `call_urls` | Web addresses it may call for a connected user |
 | `key_header` | The header with the other side's key; the key itself is the server's |
 
 The other side calls `api.justyo.app/NAME/…`: `event["trigger"]` is `"webhook"`. The server keeps two values per
-user: the secret such a call carries, which the script never sees, and `event["out"]`, what the other side knows them by.
+user: the secret such a call carries, which the script never sees, and `event["out"]`, what the other side knows them by
+(the same after a reconnect). `event["keyed"]`: the call has the other side's own key. An empty reply is an empty body.
 
 License and everything else: [Yo](https://github.com/YoAgain/yo#readme).
