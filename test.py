@@ -271,6 +271,8 @@ class Services(unittest.TestCase):
         self.assertEqual(ask("POST test/setup", **own)[0]["status"], 503)
         self.assertEqual(ids(), ["2", "1"])
         self.assertEqual(ids(limit=1), ["2"])
+        kinds = [yo["kind"] for yo in ask("POST triggers/you_yo_ifttt")[0]["reply"]["data"]]
+        self.assertEqual(kinds, ["photo", "yo"])
         self.assertEqual(ids(limit=0), [])
         self.assertEqual(ids(limit=-1), [])
         self.assertEqual(ask("POST actions/yo_me", body={"actionFields": {}}), [{"send": "yo"}, {"reply": {"data": [{"id": "CALL"}]}}])

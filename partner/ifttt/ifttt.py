@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timezone
 
 TRIGGER, ACTION = "you_yo_ifttt", "yo_me"
+KINDS = {"picture": "photo"}
 
 
 def yos(event):
@@ -19,7 +20,7 @@ def yos(event):
         limit = 50
     return [{
         "received_at": datetime.fromtimestamp(yo["at"], timezone.utc).isoformat(),
-        "kind": yo["kind"],
+        "kind": KINDS.get(yo["kind"], yo["kind"]),
         "meta": {"id": yo["id"], "timestamp": yo["at"]},
     } for yo in sent[:max(limit, 0)]]
 

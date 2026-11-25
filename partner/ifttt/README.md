@@ -55,7 +55,7 @@ Anna Yos IFTTT, and her Applet turns on the light. IFTTT takes no Yo from us: it
 
 ```text
 Anna  ──► Yo to IFTTT
-          server      keeps it for 7 days
+          server      keeps it for 7 days at most, tells the newest 50
           ifttt.py    [{"call": "https://realtime.ifttt.com/v1/notifications", …}]
 IFTTT ◄── there is something new for Anna (out)
 IFTTT ──► api.justyo.app/ifttt/v1/triggers/you_yo_ifttt      with Anna's key (in)
