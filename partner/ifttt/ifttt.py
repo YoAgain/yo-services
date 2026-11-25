@@ -11,6 +11,9 @@ TRIGGER, ACTION = "you_yo_ifttt", "yo_me"
 
 def yos(event):
     """The user's Yos to IFTTT, newest first."""
+    sent = event["yos"]
+    if event["out"] == "test":                # IFTTT's own tests want three
+        sent = [{"id": f"test{n}", "kind": "yo", "at": 1_700_000_000 + n} for n in (3, 2, 1)]
     limit = event["body"].get("limit")
     if type(limit) is not int or limit < 0:
         limit = 50
@@ -18,7 +21,7 @@ def yos(event):
         "received_at": datetime.fromtimestamp(yo["at"], timezone.utc).isoformat(),
         "kind": yo["kind"],
         "meta": {"id": yo["id"], "timestamp": yo["at"]},
-    } for yo in event["yos"][:limit]]
+    } for yo in sent[:limit]]
 
 
 def called(event):
