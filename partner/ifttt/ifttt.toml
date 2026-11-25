@@ -4,6 +4,6 @@ triggers = ["yo"]
 
 [bridge]
 return_url = "https://ifttt.com/channels/yo/authorize"
-help_url   = "https://ifttt.com/yo"
+help_url   = "https://ifttt.ai/yo"
 call_urls  = ["https://realtime.ifttt.com/v1/"]
 key_header = "IFTTT-Service-Key"
