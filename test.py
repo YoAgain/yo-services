@@ -16,8 +16,9 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SERVICES = [HERE / "template/template.py", *sorted(HERE.glob("*/*/*.py"))]
-FIELDS = {"names": list, "about": str, "triggers": list, "allowed_urls": list}
+SERVICES = [HERE / "template/template.py", *sorted(p.with_suffix(".py") for p in HERE.glob("*/*/*.toml"))]
+FIELDS = {"names": list, "about": str, "triggers": list}
+BRIDGE = {"return_url": str, "call_urls": list, "key_header": str}
 NOW = 1_800_000_000
 JPEG, MAX_PICTURE, MAX_ANSWER = b"\xff\xd8\xff", 512 * 1024, 1024 * 1024
 
@@ -45,12 +46,19 @@ def settings(path):
         toml = tomllib.loads(path.with_suffix(".toml").read_text())
     except (OSError, ValueError):
         raise Bad("no TOML") from None
-    need({k: type(v) for k, v in toml.items()} == FIELDS, "the four fields, no more")
+    bridge = toml.pop("bridge", None)
+    need({k: type(v) for k, v in toml.items()} == FIELDS, "the fields, no more")
     names = toml["names"]
     need(names and all(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9._]{1,32}", name) for name in names), "names")
     need(len({name.lower() for name in names}) == len(names), "a name twice")
     need(toml["triggers"] and set(toml["triggers"]) <= {"yo", "cron"}, "triggers")
-    need(toml["allowed_urls"] == [], "the internet is not built yet")
+    toml["bridge"] = bridge
+    if bridge is not None:
+        need(isinstance(bridge, dict) and {k: type(v) for k, v in bridge.items()} == BRIDGE, "bridge: all of it, no more")
+        need(re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+(/[A-Za-z0-9._-]+)+", bridge["return_url"]), "return_url")
+        need(all(isinstance(url, str) and re.fullmatch(r"https://[a-z0-9-]+(\.[a-z0-9-]+)+/([A-Za-z0-9._-]+/)*", url)
+                 for url in bridge["call_urls"]), "call_urls")
+        need(re.fullmatch(r"[A-Za-z0-9-]{1,64}", bridge["key_header"]), "key_header")
     return toml
 
 
@@ -146,7 +154,7 @@ def check(action, event, toml, folder):
     action = {k: v for k, v in action.items() if v is not None}
     keys, sends = set(action), action.get("send")
     if keys == {"send"}:
-        need(sends == "yo", "send")
+        need(sends == "yo" and (event["trigger"] != "webhook" or event["out"]), "send")
     elif keys == {"send", "media"}:
         need(sends == event["kind"] and event["media"] and action["media"] == event["media"], "not what came")
     elif keys == {"send", "jpeg"}:
@@ -167,23 +175,36 @@ def check(action, event, toml, folder):
              and NOW + 60 <= action["remind"] <= NOW + 400 * 86400, "remind")
     elif keys == {"forget"}:
         need("cron" in toml["triggers"] and not event["group"] and action["forget"] is True, "forget")
+    elif keys in ({"reply"}, {"reply", "status"}):
+        need(type(action.get("status", 200)) is int and 200 <= action.get("status", 200) < 600, "status")
+        need(event["trigger"] == "webhook" and isinstance(action["reply"], (dict, list)), "reply")
+        need(len(json.dumps(action["reply"])) <= 64 * 1024, "reply")
+    elif keys == {"call", "body"}:
+        need(event["out"] and isinstance(action["call"], str) and isinstance(action["body"], dict), "call")
+        below = [action["call"][len(url):] for url in toml["bridge"]["call_urls"] if action["call"].startswith(url)]
+        need(any(re.fullmatch(r"[A-Za-z0-9._/-]*", rest) and ".." not in rest for rest in below), "call")
+        need(len(json.dumps(action["body"])) <= 64 * 1024, "call")
     else:
         raise Bad(f"an action there is not: {sorted(keys)}")
 
 
 def events(toml):
-    for name, trigger in itertools.product(toml["names"], toml["triggers"]):
-        for kind in ("cron",) if trigger == "cron" else ("yo", "picture", "video"):
-            for group in (False,) if trigger == "cron" else (False, True):
+    for name, trigger in itertools.product(toml["names"], toml["triggers"] + ["webhook"] * bool(toml["bridge"])):
+        for kind in (trigger,) if trigger in ("cron", "webhook") else ("yo", "picture", "video"):
+            for group in (False,) if trigger in ("cron", "webhook") else (False, True):
                 for remembered in (False, True) if "cron" in toml["triggers"] else (False,):
-                    yield {"name": name, "trigger": trigger, "kind": kind, "media": "it" if kind in ("picture", "video") else None,
-                           "group": group, "remembered": remembered, "now": NOW}
+                    for out in (None, "OUT") if toml["bridge"] else (None,):
+                        call = {"id": "CALL", "method": "POST", "path": "a/b", "body": {}, "yos": [], "test": None}
+                        yield {"name": name, "trigger": trigger, "kind": kind, "group": group, "remembered": remembered,
+                               "media": "it" if kind in ("picture", "video") else None, "now": NOW, "out": out,
+                               **{k: v if trigger == "webhook" else None for k, v in call.items()}}
 
 
 def prove(path):
     """A service, all of it: raises Bad."""
     toml = settings(path)
     need(toml["names"][0].lower() == path.stem and path.parent.name == path.stem, "folder and files are named after the bot")
+    need(path.exists(), "no script")
     read(path.read_text())
     for event in events(toml):
         before = sorted(path.parent.rglob("*"))
@@ -193,6 +214,8 @@ def prove(path):
         for action in answer:
             check(action, event, toml, path.parent / "assets")
         need(sum("send" in action for action in answer) <= 1, "sends too much")
+        need(sum("reply" in action for action in answer) <= 1, "replies twice")
+        need(sum("call" in action for action in answer) <= 1, "calls twice")
         need(sum("remind" in action for action in answer) <= 1, "more than one reminder")
         need(sum(action.get("wait_ms") or 0 for action in answer) <= 5000, "waits too long")
 
@@ -216,6 +239,39 @@ class Services(unittest.TestCase):
         for event in [*events(settings(ping)), {"kind": "probe", "media": None}]:
             self.assertEqual(run(ping, event), [{"send": event["kind"], "media": event["media"]}])
 
+    def test_ifttt(self):
+        ifttt = HERE / "partner/ifttt/ifttt.py"
+        toml = settings(ifttt)
+        yos = [{"id": "2", "kind": "picture", "at": NOW}, {"id": "1", "kind": "yo", "at": NOW - 60}]
+        base = {"name": "IFTTT", "trigger": "webhook", "kind": "webhook", "media": None, "group": False, "remembered": False,
+                "now": NOW, "id": "CALL", "body": {}, "out": "OUT", "yos": yos, "test": None}
+
+        def ask(call, **more):
+            method, path = call.split(" ")
+            event = {**base, "method": method, "path": "v1/" + path, **more}
+            answer = run(ifttt, event)
+            for action in answer:
+                check(action, event, toml, ifttt.parent)
+            return answer
+
+        def ids(**body):
+            return [yo["meta"]["id"] for yo in ask("POST triggers/you_yo_ifttt", body=body)[0]["reply"]["data"]]
+
+        self.assertEqual(ask("GET status", out=None), [{"reply": {}}])
+        self.assertEqual(ids(), ["2", "1"])
+        self.assertEqual(ids(limit=1), ["2"])
+        self.assertEqual(ids(limit=0), [])
+        self.assertEqual(ask("POST actions/yo_me"), [{"send": "yo"}, {"reply": {"data": [{"id": "CALL"}]}}])
+        self.assertEqual(ask("GET user/info")[0]["reply"]["data"], {"id": "OUT", "name": "Yo"})
+        self.assertEqual(ask("POST test/setup", out=None, test="T")[0]["reply"]["data"]["accessToken"], "T")
+        self.assertEqual(ask("DELETE triggers/you_yo_ifttt/trigger_identity/x", out=None), [{"reply": {}}])
+        for call in ("GET user/info", "POST triggers/you_yo_ifttt", "POST actions/yo_me", "POST test/setup"):
+            self.assertEqual(ask(call, out=None)[0]["status"], 404)
+        yo = {**base, "trigger": "yo", "kind": "yo"}
+        self.assertEqual(run(ifttt, yo)[0]["body"], {"data": [{"user_id": "OUT"}]})
+        self.assertEqual(run(ifttt, {**yo, "out": None}), [])
+        self.assertEqual(run(ifttt, {**yo, "group": True}), [])
+
     def test_no_names_of_people_or_machines(self):
         for path in SERVICES:
             text = path.read_text() + path.with_suffix(".toml").read_text()
@@ -223,7 +279,7 @@ class Services(unittest.TestCase):
 
 
 GOOD = (HERE / "yo/ping/ping.py").read_text()
-TOML = 'names = ["PING", "PINGTEST"]\nabout = "a"\ntriggers = ["yo", "cron"]\nallowed_urls = []\n'
+TOML = 'names = ["PING", "PINGTEST"]\nabout = "a"\ntriggers = ["yo", "cron"]\n'
 SAY = "import json, sys\nevent = json.load(sys.stdin)\nprint(json.dumps(%s))\n"
 EVIL = {
     "network": "import socket\n",
@@ -262,11 +318,15 @@ EVIL = {
     "soon": SAY % '[{"remind": event["now"] + 1}]',
     "no text": SAY % '[{"send": "picture", "jpeg": 1}]',
     "long waits": SAY % '[{"wait_ms": 4000}, {"wait_ms": 4000}]',
+    "a reply to a Yo": SAY % '[{"reply": {}}]',
+    "a call unconnected": SAY % '[{"call": "https://example.com/", "body": {}}]',
     "not a picture": SAY % '[{"send": "picture", "jpeg": "AAAA"}]',
 }
 TOMLS = {
     "missing": ("about", "abou"), "extra": ("about", "root = 1\nabout"), "no TOML": ("about", "print(1)\nabout"),
-    "internet": ("urls = []", 'urls = ["https://example.com/"]'), "trigger": ('"yo"', '"webhook"'),
+    "internet": ("triggers", 'allowed_urls = ["https://example.com/"]\ntriggers'), "trigger": ('"yo"', '"root"'),
+    "webhook": ('"yo"', '"webhook"'), "half bridge": ("triggers", 'bridge = {return_url = "https://example.com/a"}\ntriggers'),
+    "bridge to http": ("triggers", 'bridge = {return_url = "http://example.com/a", call_urls = [], key_header = "A"}\ntriggers'),
     "name": ('"PING"', '"YOGPT"'), "no name": ('"PING", "PINGTEST"', ""), "twice": ('"PINGTEST"', '"ping"'),
     "one name": ('["PING", "PINGTEST"]', '"PING"'), "type": ('"a"', "1"),
 }
@@ -298,6 +358,16 @@ class ThisTest(unittest.TestCase):
         for name in ("network", "process", "system", "hidden import", "open", "read", "write", "environment", "memory"):
             with self.subTest(name), self.assertRaises(Bad):
                 run(self.make(EVIL[name] + more.get(name, "")), {"kind": "yo"})
+
+    def test_calls_stay_below_call_urls(self):
+        toml = {"bridge": {"call_urls": ["https://example.com/a/"]}, "triggers": ["yo"]}
+        event = {"trigger": "yo", "out": "OUT", "group": False}
+        check({"call": "https://example.com/a/b", "body": {}}, event, toml, HERE)
+        for url in ("https://example.com/b", "https://example.com/a/../b", "https://example.com/a/?x", "https://evil.com/a/"):
+            with self.subTest(url), self.assertRaises(Bad):
+                check({"call": url, "body": {}}, event, toml, HERE)
+        with self.assertRaises(Bad):
+            check({"call": "https://example.com/a/b", "body": {}}, {**event, "out": None}, toml, HERE)
 
     def test_bad_tomls_are_caught(self):
         for name, (old, new) in TOMLS.items():

@@ -22,6 +22,8 @@ event = json.load(sys.stdin)
 
 if event["trigger"] == "cron":          # the reminder is due
     answer = [{"send": "yo"}]
+elif event["trigger"] == "webhook":     # called: a Yo to the user whose secret it carried, and a reply
+    answer = [{"send": "yo"}, {"reply": {"ok": True}}] if event["out"] else [{"reply": {}}]
 elif event["kind"] != "yo":             # a picture or a video came: back it goes
     answer = [{"send": event["kind"], "media": event["media"]}]
 elif event["group"]:                    # in a group nobody is reminded
@@ -31,5 +33,7 @@ else:
         {"send": "picture", "jpeg": clock(datetime.fromtimestamp(event["now"]))},
         {"remind": event["now"] + 600},
     ]
+    if event["out"]:                    # connected: the other side hears of the Yo
+        answer.append({"call": "https://example.com/yo", "body": {"user": event["out"]}})
 
 print(json.dumps(answer))

@@ -1,4 +1,8 @@
-names        = ["TEMPLATE"]      # its Yo names: one or more, each an account of its own; event["name"] says which
-about        = "A Yo gets the time, and one Yo ten minutes later."    # what it does
-triggers     = ["yo", "cron"]    # "yo": someone Yos it; "cron": a reminder is due, so it may remember who Yoed
-allowed_urls = []                # web addresses it may call; not built yet
+names    = ["TEMPLATE"]      # its Yo names: one or more, each an account of its own; event["name"] says which
+about    = "A Yo gets the time, and one Yo ten minutes later."    # what it does
+triggers = ["yo", "cron"]    # "yo": someone Yos it; "cron": a reminder is due, so it may remember who Yoed
+
+[bridge]                     # only of a service that users connect with another one; left out, it has none of this
+return_url = "https://example.com/connected"    # where the user goes back to, once the app allowed it
+call_urls  = ["https://example.com/"]           # what it may call for a connected user, anything below
+key_header = "X-Example-Key"                    # the header with the other side's key, which the server has

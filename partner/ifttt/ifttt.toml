@@ -1,0 +1,8 @@
+names    = ["IFTTT"]
+about    = "Connects Yo with IFTTT."
+triggers = ["yo"]
+
+[bridge]
+return_url = "https://ifttt.com/channels/yo/authorize"
+call_urls  = ["https://realtime.ifttt.com/v1/"]
+key_header = "IFTTT-Service-Key"

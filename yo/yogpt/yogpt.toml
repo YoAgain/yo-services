@@ -1,4 +1,3 @@
-names        = ["YoGPT"]
-about        = "Thinks for a moment, then answers with a picture."
-triggers     = ["yo"]
-allowed_urls = []
+names    = ["YoGPT"]
+about    = "Thinks for a moment, then answers with a picture."
+triggers = ["yo"]
